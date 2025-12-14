@@ -18,17 +18,35 @@
 
   <!-- TRIP SETUP -->
   <section class="card">
-    <h2>✈️ Trip Setup</h2>
-    <form method="POST" action="/create-trip">
-      <input name="trip_name" placeholder="Trip name" required>
-      <input name="participants" placeholder="Participants (comma separated)" required>
-      <div class="row">
-        <input type="date" name="start_date" required>
-        <input type="number" name="duration" placeholder="Days" required>
-      </div>
-      <button>Create Trip</button>
-    </form>
-  </section>
+  <h2>✈️ Trip Setup</h2>
+  <form method="POST" action="/create-trip">
+
+    <input name="trip_name" placeholder="Trip name" required>
+    <input name="participants" placeholder="Participants (comma separated)" required>
+
+    <div class="row">
+      <input type="date" name="start_date" required>
+      <input type="number" name="duration" placeholder="Days" required>
+    </div>
+
+    <!-- BUDGET INPUTS -->
+    <h3>💰 Trip Budget</h3>
+    <input type="number" name="total_budget" placeholder="Total trip budget">
+
+    <div class="row">
+      <input type="number" name="budget_food" placeholder="Food budget">
+      <input type="number" name="budget_hotel" placeholder="Hotel budget">
+    </div>
+
+    <div class="row">
+      <input type="number" name="budget_transport" placeholder="Transport budget">
+      <input type="number" name="budget_fun" placeholder="Fun budget">
+    </div>
+
+    <button>Create Trip</button>
+  </form>
+</section>
+
 
   {% if trip_id %}
 
