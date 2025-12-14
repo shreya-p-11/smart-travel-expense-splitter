@@ -114,11 +114,19 @@
   </section>
 
   <!-- BUDGET -->
-  <section class="card">
-    <h2>💰 Trip Budget</h2>
-    <input type="number" id="budgetInput" placeholder="Enter total trip budget">
-    <p id="budgetStatus"></p>
-  </section>
+<section class="card">
+  <h2>💰 Trip Budget</h2>
+
+  <input
+    type="number"
+    id="budgetInput"
+    placeholder="Enter total trip budget"
+    style="width:100%; margin-bottom:10px;"
+  >
+
+  <p id="budgetStatus">Enter a budget to track your spending.</p>
+</section>
+
 
   <!-- INSIGHTS -->
   <section class="card">
@@ -164,8 +172,9 @@
       }
 
       // Budget logic
-      const totalSpent = Object.values(categoryData)
-        .reduce((a, b) => a + b, 0);
+      const totalSpent = Object.values(categoryData || {})
+  .reduce((a, b) => a + b, 0);
+
 
       const budgetInput = document.getElementById("budgetInput");
       const budgetStatus = document.getElementById("budgetStatus");
