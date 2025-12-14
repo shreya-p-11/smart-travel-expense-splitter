@@ -4,6 +4,7 @@
   <meta charset="UTF-8">
   <title>Smart Travel Expense Splitter</title>
   <link rel="stylesheet" href="/static/style.css">
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 </head>
 <body>
 
@@ -35,19 +36,29 @@
   <section class="card">
     <h2>💳 Add Expense</h2>
     <form method="POST" action="/add-expense">
-      <select name="category">
-        <option>food</option>
-        <option>hotel</option>
-        <option>transport</option>
-        <option>fun</option>
-        <option>misc</option>
-      </select>
 
-      <select name="payer">
-        {% for p in participants %}
-        <option value="{{p.participant_id}}">{{p.name}}</option>
+      <select name="category" required>
+        {% for c in categories %}
+          <option value="{{c}}">{{c}}</option>
         {% endfor %}
       </select>
+
+      <select name="payer" required>
+        {% for p in participants %}
+          <option value="{{p.participant_id}}">{{p.name}}</option>
+        {% endfor %}
+      </select>
+
+      <!-- BENEFICIARIES -->
+      <div class="beneficiaries">
+        <p><strong>Who benefited?</strong></p>
+        {% for p in participants %}
+          <label>
+            <input type="checkbox" name="beneficiaries" value="{{p.participant_id}}" checked>
+            {{p.name}}
+          </label>
+        {% endfor %}
+      </div>
 
       <input type="number" name="amount" placeholder="Amount paid" required>
       <input type="date" name="expense_date">
@@ -62,23 +73,30 @@
     <h2>📜 Expense History</h2>
     {% for e in expenses %}
       <div class="list-item">
-        <strong>{{e.category}}</strong> — ₹{{e.amount}}  
-        <span>paid by {{e.payer}}</span>
+        <strong>{{e.category}}</strong> — ₹{{e.amount}}
+        <span>paid by {{e.payer_id}}</span>
       </div>
+    {% else %}
+      <p>No expenses yet.</p>
     {% endfor %}
   </section>
 
   <!-- SUMMARY -->
   <section class="card">
     <h2>⚖️ Settlement Summary</h2>
-
     {% for person in summary %}
       <div class="summary-row">
         <strong>{{person.name}}</strong>
         <span>Paid: ₹{{person.paid}}</span>
         <span>Share: ₹{{person.share}}</span>
-        <span class="{{person.status}}">
-          {{person.message}}
+        <span>
+          {% if person.net > 0 %}
+            Gets back ₹{{person.net}}
+          {% elif person.net < 0 %}
+            Owes ₹{{-person.net}}
+          {% else %}
+            Settled
+          {% endif %}
         </span>
       </div>
     {% endfor %}
@@ -91,14 +109,79 @@
       <div class="settlement">
         👉 <strong>{{s.from}}</strong> pays <strong>{{s.to}}</strong> ₹{{s.amount}}
       </div>
+    {% else %}
+      <p>No settlements needed 🎉</p>
     {% endfor %}
   </section>
 
-  <!-- ANALYTICS -->
+  <!-- INSIGHTS WITH CHARTS -->
   <section class="card">
     <h2>📊 Insights</h2>
-    {% for k,v in analytics.items() %}
-      <p><strong>{{k}}</strong>: {{v}}</p>
+
+    <!-- SAFELY INJECT ANALYTICS JSON -->
+    <script id="analytics-json" type="application/json">
+      {{ analytics | tojson | safe }}
+    </script>
+
+    <canvas id="categoryChart"></canvas>
+    <canvas id="dailyChart" style="margin-top:30px;"></canvas>
+
+    <script>
+      const analyticsData = JSON.parse(
+        document.getElementById("analytics-json").textContent
+      );
+
+      const categoryData = analyticsData.category_breakdown || {};
+      const dailyData = analyticsData.daily_spending || {};
+
+      if (Object.keys(categoryData).length > 0) {
+        new Chart(document.getElementById("categoryChart"), {
+          type: "pie",
+          data: {
+            labels: Object.keys(categoryData),
+            datasets: [{
+              data: Object.values(categoryData)
+            }]
+          }
+        });
+      }
+
+      if (Object.keys(dailyData).length > 0) {
+        new Chart(document.getElementById("dailyChart"), {
+          type: "line",
+          data: {
+            labels: Object.keys(dailyData),
+            datasets: [{
+              label: "Daily Spend",
+              data: Object.values(dailyData),
+              fill: false
+            }]
+          }
+        });
+      }
+    </script>
+  </section>
+
+  <!-- TRANSPARENCY -->
+  <section class="card">
+    <h2>🔍 Expense Breakdown (Transparency)</h2>
+
+    {% for person, data in explanations.items() %}
+      <div class="breakdown">
+        <h3>{{person}}</h3>
+
+        {% for d in data.details %}
+          <p>
+            {{d.category}} ₹{{d.amount}} →
+            split among {{d.beneficiaries}} people →
+            {{person}}’s share = ₹{{d.share}}
+          </p>
+        {% endfor %}
+
+        <p><strong>Total Paid:</strong> ₹{{data.total_paid}}</p>
+        <p><strong>Total Share:</strong> ₹{{data.total_share}}</p>
+        <p><strong>Net:</strong> ₹{{data.net}}</p>
+      </div>
     {% endfor %}
   </section>
 
