@@ -68,12 +68,15 @@ def index():
     expenses = []
     summary = []
     settlements_named = []
-    analytics = {
-    "category_breakdown": {},
-    "daily_spending": {}
-}
     warnings = []
+
+    analytics = {
+        "category_breakdown": {},
+        "daily_spending": {}
+    }
+
     explanations = {}
+
 
     if trip_id:
         participants = get_participants(trip_id)
