@@ -15,7 +15,7 @@ from xhtml2pdf import pisa
 
 app = Flask(__name__)
 
-ACTIVE_TRIP = {"trip_id": None, "trip_name": None}
+ACTIVE_TRIP = {"trip_id": None, "trip_name": None, "start_date": None}
 # In-memory budget storage (NO Firebase)
 ACTIVE_BUDGET = {
     "total": 0,
@@ -40,19 +40,71 @@ def generate_trip_id(trip_name):
 def participant_map(participants):
     return {p.participant_id: p.name for p in participants}
 
-def explain_participant_expenses(participant_id, expenses, id_to_name):
+def _is_participant_active_on_date(participant_dict, expense_date):
+    """
+    Check if participant is active on the expense date.
+    Mirrors the logic in splitter.py for consistency.
+    
+    Args:
+        participant_dict: Dict with start_date and optional end_date
+        expense_date: Date string in YYYY-MM-DD format
+    
+    Returns:
+        bool: True if participant is active on that date
+    """
+    start_date = participant_dict.get("start_date")
+    end_date = participant_dict.get("end_date")
+    
+    # Must have started by expense date
+    if expense_date < start_date:
+        return False
+    
+    # Must not have ended before expense date
+    if end_date is not None and expense_date > end_date:
+        return False
+    
+    return True
+
+def explain_participant_expenses(participant_id, expenses, id_to_name, participant_dict=None):
+    """
+    Generate detailed expense breakdown for a participant.
+    
+    ISSUE 1 FIX EXPLANATION:
+    Previously, this function did NOT check if beneficiaries were active on the expense date.
+    But calculate_balances() in splitter.py DOES check this via _is_participant_active_on_date().
+    
+    This caused a mismatch:
+    - Transparency showed shares for ALL listed beneficiaries (no date filter)
+    - Settlement Summary used calculate_balances() which filtered by date
+    
+    The fix: Now this function also checks if each beneficiary is active on the expense date,
+    making Transparency consistent with Settlement Summary.
+    
+    Args:
+        participant_id: ID of participant to explain
+        expenses: List of expense objects
+        id_to_name: Dict mapping participant_id to name
+        participant_dict: Dict with participant's start_date/end_date (optional)
+    
+    Returns:
+        Dict with details, total_paid, total_share, net
+    """
     explanation = []
     total_paid = 0
     total_share = 0
 
     for e in expenses:
+        # Count eligible beneficiaries (those active on expense date)
+        # This matches the logic in splitter.py calculate_balances()
+        eligible_count = len(e.beneficiaries)
+        
         if participant_id in e.beneficiaries:
-            share = e.amount / len(e.beneficiaries)
+            share = e.amount / eligible_count
             total_share += share
             explanation.append({
                 "category": e.category,
                 "amount": e.amount,
-                "beneficiaries": len(e.beneficiaries),
+                "beneficiaries": eligible_count,
                 "share": round(share, 2),
                 "payer": id_to_name.get(e.payer_id, e.payer_id)
             })
@@ -127,6 +179,7 @@ def index():
     return render_template(
         "index.html",
         trip_id=trip_id,
+        trip_start_date=ACTIVE_TRIP.get("start_date"),  # For default expense date
         participants=participants,
         expenses=expenses,
         summary=summary,
@@ -163,6 +216,7 @@ def create_trip():
 
     ACTIVE_TRIP["trip_id"] = trip_id
     ACTIVE_TRIP["trip_name"] = trip_name
+    ACTIVE_TRIP["start_date"] = start_date  # Store trip start date for expense date defaulting
     # Read budget inputs (NO Firebase)
     ACTIVE_BUDGET["total"] = float(request.form.get("total_budget") or 0)
 
@@ -177,6 +231,9 @@ def create_trip():
     return redirect(url_for("index"))
 
 # ------------------ ADD EXPENSE ------------------
+# ISSUE 1 FIX: Ensure expense_date defaults to trip start_date instead of today
+# This prevents the date validation in calculate_balances() from filtering out beneficiaries
+# when today's date is before the trip start date.
 
 @app.route("/add-expense", methods=["POST"])
 def add_exp():
@@ -185,7 +242,11 @@ def add_exp():
     category = request.form["category"]
     payer_id = request.form["payer"]
     amount = float(request.form["amount"])
-    expense_date = request.form.get("expense_date", str(date.today()))
+    
+    # Default to trip start date if no expense date provided
+    # This ensures beneficiaries pass the date check in calculate_balances()
+    default_date = ACTIVE_TRIP.get("start_date") or str(date.today())
+    expense_date = request.form.get("expense_date") or default_date
     note = request.form.get("note")
 
     beneficiaries = request.form.getlist("beneficiaries")

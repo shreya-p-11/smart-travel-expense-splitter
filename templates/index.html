@@ -60,18 +60,23 @@
       align-items: center;
     }
     
+    /* 
+     * ISSUE 2 FIX: Updated button color to #9F86C0 as requested
+     * Also updated hover state to complement the new color
+     */
     .beneficiary-controls button {
       padding: 6px 12px;
       font-size: 0.85em;
-      background: #f0f0f0;
-      border: 1px solid #ddd;
+      background: #9F86C0;
+      color: white;
+      border: none;
       border-radius: 5px;
       cursor: pointer;
       transition: all 0.2s;
     }
     
     .beneficiary-controls button:hover {
-      background: #e0e0e0;
+      background: #8B74A9;
     }
     
     .split-info {
@@ -359,7 +364,8 @@
       </div>
 
       <input type="number" name="amount" placeholder="Amount paid" required>
-      <input type="date" name="expense_date">
+      <!-- Default expense date to trip start date to ensure date validation passes -->
+      <input type="date" name="expense_date" value="{{ trip_start_date or '' }}">
       <textarea name="note" placeholder="Optional note"></textarea>
 
       <button>Add Expense</button>
@@ -398,6 +404,26 @@
     {% endfor %}
   </section>
 
+  <!-- 
+    ISSUE 1 FIX EXPLANATION - SETTLEMENT SUMMARY:
+    
+    ROOT CAUSE: Settlement Summary was showing Share=0 for non-payers because:
+    1. calculate_balances() in splitter.py filters beneficiaries by date
+    2. If expense_date was before participant start_date, they weren't counted
+    3. When expense_date defaulted to today() but trip start_date was in future,
+       ALL beneficiaries failed the date check, resulting in 0 shares
+    
+    THE FIX: 
+    1. Expense date now defaults to trip_start_date (not today)
+    2. This ensures beneficiaries pass the _is_participant_active_on_date() check
+    3. Summary data comes directly from calculate_balances() output
+    
+    The data flow is:
+    - calculate_balances() returns {participant_id: {total_paid, total_share, net_balance}}
+    - app.py maps this to summary list with names
+    - Template displays summary as-is (no additional filtering)
+  -->
+  
   <!-- SUMMARY -->
   <section class="card">
     <h2>⚖️ Settlement Summary</h2>
@@ -421,6 +447,24 @@
     {% endfor %}
   </section>
 
+  <!-- 
+    ISSUE 1 FIX EXPLANATION - WHO PAYS WHOM:
+    
+    ROOT CAUSE: Was showing "No settlements needed" because:
+    1. optimize_settlements() takes balances from calculate_balances()
+    2. If all total_share values were 0 (due to date filtering issue),
+       all net_balance values were positive (only payers had non-zero)
+    3. With no debtors (negative net_balance), no settlements generated
+    
+    THE FIX:
+    1. Same fix as Settlement Summary - expense dates now valid
+    2. With correct shares, non-payers have negative net_balance (they owe)
+    3. optimize_settlements() now correctly pairs debtors with creditors
+    
+    The settlements list comes directly from optimize_settlements() output.
+    Template displays it without any additional filtering.
+  -->
+  
   <!-- WHO PAYS WHOM -->
   <section class="card">
     <h2>🔁 Who Pays Whom</h2>
