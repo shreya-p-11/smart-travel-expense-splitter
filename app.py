@@ -83,6 +83,7 @@ def index():
         expenses = get_expenses(trip_id)
 
         id_to_name = participant_map(participants)
+        payer_name_map = id_to_name
 
         if expenses:
             balances = calculate_balances(
@@ -135,6 +136,8 @@ def index():
         warnings=warnings,
         explanations=explanations,
         categories=VALID_CATEGORIES
+        payer_name_map=payer_name_map,
+
     )
 
 # ------------------ CREATE TRIP ------------------

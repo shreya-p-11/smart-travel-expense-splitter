@@ -74,7 +74,7 @@
     {% for e in expenses %}
       <div class="list-item">
         <strong>{{e.category}}</strong> — ₹{{e.amount}}
-        <span>paid by {{e.payer_id}}</span>
+        <span>paid by {{ payer_name_map[e.payer_id] }}</span>
       </div>
     {% else %}
       <p>No expenses yet.</p>
@@ -114,6 +114,21 @@
     {% endfor %}
   </section>
 
+  <!-- BUDGET -->
+<section class="card">
+  <h2>💰 Trip Budget</h2>
+
+  <input
+    type="number"
+    id="budgetInput"
+    placeholder="Enter total trip budget"
+    style="margin-bottom:10px;"
+  >
+
+  <p id="budgetStatus"></p>
+</section>
+
+
   <!-- INSIGHTS WITH CHARTS -->
   <section class="card">
     <h2>📊 Insights</h2>
@@ -123,7 +138,8 @@
       {{ analytics | tojson | safe }}
     </script>
 
-    <canvas id="categoryChart"></canvas>
+   <canvas id="categoryChart" width="250" height="250"></canvas>
+
     <canvas id="dailyChart" style="margin-top:30px;"></canvas>
 
     <script>
@@ -160,6 +176,34 @@
         });
       }
     </script>
+    <script>
+  // --- Budget Logic ---
+  const totalSpent = Object.values(categoryData)
+    .reduce((a, b) => a + b, 0);
+
+  const budgetInput = document.getElementById("budgetInput");
+  const budgetStatus = document.getElementById("budgetStatus");
+
+  budgetInput?.addEventListener("input", () => {
+    const budget = parseFloat(budgetInput.value);
+    if (!budget || budget <= 0) {
+      budgetStatus.textContent = "";
+      return;
+    }
+
+    const remaining = budget - totalSpent;
+
+    if (remaining >= 0) {
+      budgetStatus.innerHTML =
+        `✅ Spent ₹${totalSpent} / ₹${budget} — Remaining ₹${remaining}`;
+    } else {
+      budgetStatus.innerHTML =
+        `⚠️ Budget exceeded by ₹${Math.abs(remaining)}`;
+      budgetStatus.style.color = "red";
+    }
+  });
+</script>
+
   </section>
 
   <!-- TRANSPARENCY -->
