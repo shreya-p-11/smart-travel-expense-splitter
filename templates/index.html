@@ -1,0 +1,125 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>Smart Travel Expense Splitter</title>
+  <link rel="stylesheet" href="/static/style.css">
+</head>
+<body>
+
+<div class="container">
+
+  <!-- HEADER -->
+  <header>
+    <h1>🧳 Smart Travel Expense Splitter</h1>
+    <p class="subtitle">Fair, transparent expense sharing for real trips</p>
+  </header>
+
+  <!-- TRIP SETUP -->
+  <section class="card">
+    <h2>✈️ Trip Setup</h2>
+    <form method="POST" action="/create-trip">
+      <input name="trip_name" placeholder="Trip name" required>
+      <input name="participants" placeholder="Participants (comma separated)" required>
+      <div class="row">
+        <input type="date" name="start_date" required>
+        <input type="number" name="duration" placeholder="Days" required>
+      </div>
+      <button>Create Trip</button>
+    </form>
+  </section>
+
+  {% if trip_id %}
+
+  <!-- ADD EXPENSE -->
+  <section class="card">
+    <h2>💳 Add Expense</h2>
+    <form method="POST" action="/add-expense">
+      <select name="category">
+        <option>food</option>
+        <option>hotel</option>
+        <option>transport</option>
+        <option>fun</option>
+        <option>misc</option>
+      </select>
+
+      <select name="payer">
+        {% for p in participants %}
+        <option value="{{p.participant_id}}">{{p.name}}</option>
+        {% endfor %}
+      </select>
+
+      <input type="number" name="amount" placeholder="Amount paid" required>
+      <input type="date" name="expense_date">
+      <textarea name="note" placeholder="Optional note"></textarea>
+
+      <button>Add Expense</button>
+    </form>
+  </section>
+
+  <!-- EXPENSE HISTORY -->
+  <section class="card">
+    <h2>📜 Expense History</h2>
+    {% for e in expenses %}
+      <div class="list-item">
+        <strong>{{e.category}}</strong> — ₹{{e.amount}}  
+        <span>paid by {{e.payer}}</span>
+      </div>
+    {% endfor %}
+  </section>
+
+  <!-- SUMMARY -->
+  <section class="card">
+    <h2>⚖️ Settlement Summary</h2>
+
+    {% for person in summary %}
+      <div class="summary-row">
+        <strong>{{person.name}}</strong>
+        <span>Paid: ₹{{person.paid}}</span>
+        <span>Share: ₹{{person.share}}</span>
+        <span class="{{person.status}}">
+          {{person.message}}
+        </span>
+      </div>
+    {% endfor %}
+  </section>
+
+  <!-- WHO PAYS WHOM -->
+  <section class="card">
+    <h2>🔁 Who Pays Whom</h2>
+    {% for s in settlements %}
+      <div class="settlement">
+        👉 <strong>{{s.from}}</strong> pays <strong>{{s.to}}</strong> ₹{{s.amount}}
+      </div>
+    {% endfor %}
+  </section>
+
+  <!-- ANALYTICS -->
+  <section class="card">
+    <h2>📊 Insights</h2>
+    {% for k,v in analytics.items() %}
+      <p><strong>{{k}}</strong>: {{v}}</p>
+    {% endfor %}
+  </section>
+
+  <!-- WARNINGS -->
+  {% if warnings %}
+  <section class="card warning">
+    <h2>⚠️ Smart Warnings</h2>
+    {% for w in warnings %}
+      <p>⚠️ {{w}}</p>
+    {% endfor %}
+  </section>
+  {% endif %}
+
+  <!-- EXPORT -->
+  <section class="card">
+    <h2>🧾 Export</h2>
+    <a href="/export" class="btn-secondary">Download Trip Report</a>
+  </section>
+
+  {% endif %}
+
+</div>
+</body>
+</html>
