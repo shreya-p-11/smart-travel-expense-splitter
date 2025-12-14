@@ -5,6 +5,156 @@
   <title>Smart Travel Expense Splitter</title>
   <link rel="stylesheet" href="/static/style.css">
   <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+  <style>
+    /* Category color scheme - consistent across all UI elements */
+    :root {
+      --color-food: #4CAF50;
+      --color-hotel: #9C27B0;
+      --color-transport: #2196F3;
+      --color-fun: #FF9800;
+      --color-misc: #9E9E9E;
+    }
+    
+    /* Budget section styles */
+    .budget-section { margin-top: 20px; }
+    
+    .budget-overview {
+      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+      color: white;
+      padding: 20px;
+      border-radius: 12px;
+      margin-bottom: 20px;
+    }
+    
+    .budget-overview h3 { margin: 0 0 15px 0; font-size: 1.1em; }
+    
+    .budget-stats {
+      display: flex;
+      justify-content: space-between;
+      margin-bottom: 15px;
+      flex-wrap: wrap;
+      gap: 10px;
+    }
+    
+    .budget-stat {
+      text-align: center;
+      flex: 1;
+      min-width: 80px;
+    }
+    
+    .budget-stat .value {
+      font-size: 1.5em;
+      font-weight: bold;
+    }
+    
+    .budget-stat .label {
+      font-size: 0.85em;
+      opacity: 0.9;
+    }
+    
+    /* Progress bar styles */
+    .progress-container {
+      background: rgba(255,255,255,0.3);
+      border-radius: 10px;
+      height: 20px;
+      overflow: hidden;
+      margin-top: 10px;
+    }
+    
+    .progress-bar {
+      height: 100%;
+      border-radius: 10px;
+      transition: width 0.5s ease;
+    }
+    
+    .progress-bar.safe { background: #4CAF50; }
+    .progress-bar.warning { background: #FF9800; }
+    .progress-bar.danger { background: #f44336; }
+    
+    /* Category budget cards */
+    .category-budgets {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+      gap: 15px;
+      margin-top: 20px;
+    }
+    
+    .category-budget-card {
+      background: #f8f9fa;
+      border-radius: 10px;
+      padding: 15px;
+      border-left: 4px solid;
+    }
+    
+    .category-budget-card.food { border-left-color: var(--color-food); }
+    .category-budget-card.hotel { border-left-color: var(--color-hotel); }
+    .category-budget-card.transport { border-left-color: var(--color-transport); }
+    .category-budget-card.fun { border-left-color: var(--color-fun); }
+    .category-budget-card.misc { border-left-color: var(--color-misc); }
+    
+    .category-budget-card h4 {
+      margin: 0 0 10px 0;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+    
+    .category-budget-card .amounts {
+      font-size: 0.9em;
+      color: #666;
+      margin-bottom: 8px;
+    }
+    
+    .category-progress {
+      background: #e0e0e0;
+      border-radius: 6px;
+      height: 8px;
+      overflow: hidden;
+    }
+    
+    .category-progress-bar {
+      height: 100%;
+      border-radius: 6px;
+      transition: width 0.5s ease;
+    }
+    
+    .category-progress-bar.food { background: var(--color-food); }
+    .category-progress-bar.hotel { background: var(--color-hotel); }
+    .category-progress-bar.transport { background: var(--color-transport); }
+    .category-progress-bar.fun { background: var(--color-fun); }
+    .category-progress-bar.misc { background: var(--color-misc); }
+    
+    /* Warning styles */
+    .budget-warning {
+      background: #ffebee;
+      border: 1px solid #f44336;
+      color: #c62828;
+      padding: 12px 15px;
+      border-radius: 8px;
+      margin-top: 15px;
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+    
+    .budget-warning.category-warning {
+      background: #fff3e0;
+      border-color: #FF9800;
+      color: #e65100;
+    }
+    
+    .no-budget-msg {
+      color: #666;
+      font-style: italic;
+      padding: 10px 0;
+    }
+
+    /* Chart container for better sizing */
+    .chart-container {
+      max-width: 350px;
+      margin: 0 auto 30px auto;
+    }
+  </style>
 </head>
 <body>
 
@@ -18,37 +168,196 @@
 
   <!-- TRIP SETUP -->
   <section class="card">
-  <h2>✈️ Trip Setup</h2>
-  <form method="POST" action="/create-trip">
+    <h2>✈️ Trip Setup</h2>
+    <form method="POST" action="/create-trip">
 
-    <input name="trip_name" placeholder="Trip name" required>
-    <input name="participants" placeholder="Participants (comma separated)" required>
+      <input name="trip_name" placeholder="Trip name" required>
+      <input name="participants" placeholder="Participants (comma separated)" required>
 
-    <div class="row">
-      <input type="date" name="start_date" required>
-      <input type="number" name="duration" placeholder="Days" required>
-    </div>
+      <div class="row">
+        <input type="date" name="start_date" required>
+        <input type="number" name="duration" placeholder="Days" required>
+      </div>
 
-    <!-- BUDGET INPUTS -->
-    <h3>💰 Trip Budget</h3>
-    <input type="number" name="total_budget" placeholder="Total trip budget">
+      <!-- BUDGET INPUTS - Always visible during trip creation -->
+      <h3>💰 Set Your Budget (Optional)</h3>
+      <p style="color:#666; font-size:0.9em; margin-bottom:10px;">
+        Set budgets to track spending and get warnings when exceeded
+      </p>
+      
+      <input type="number" name="total_budget" placeholder="Total trip budget (₹)" min="0" step="100">
 
-    <div class="row">
-      <input type="number" name="budget_food" placeholder="Food budget">
-      <input type="number" name="budget_hotel" placeholder="Hotel budget">
-    </div>
+      <p style="margin-top:15px; margin-bottom:5px; font-weight:500;">Category Budgets:</p>
+      <div class="row">
+        <input type="number" name="budget_food" placeholder="🍕 Food" min="0" step="100">
+        <input type="number" name="budget_hotel" placeholder="🏨 Hotel" min="0" step="100">
+      </div>
 
-    <div class="row">
-      <input type="number" name="budget_transport" placeholder="Transport budget">
-      <input type="number" name="budget_fun" placeholder="Fun budget">
-    </div>
+      <div class="row">
+        <input type="number" name="budget_transport" placeholder="🚗 Transport" min="0" step="100">
+        <input type="number" name="budget_fun" placeholder="🎉 Fun" min="0" step="100">
+      </div>
 
-    <button>Create Trip</button>
-  </form>
-</section>
+      <button>Create Trip</button>
+    </form>
+  </section>
 
 
   {% if trip_id %}
+
+  <!-- 
+    FIX EXPLANATION:
+    Budget section is now OUTSIDE of any expense-dependent conditionals.
+    It renders immediately after trip creation, regardless of whether
+    expenses or analytics data exists. Budget uses in-memory data passed
+    from app.py via the 'budget' template variable.
+  -->
+
+  <!-- BUDGET TRACKING - Always visible after trip creation -->
+  <section class="card">
+    <h2>💰 Budget Tracking</h2>
+    
+    <!-- Embed budget and analytics data for JavaScript -->
+    <script id="budget-json" type="application/json">{{ budget | tojson | safe }}</script>
+    <script id="analytics-data" type="application/json">{{ analytics | tojson | safe }}</script>
+    
+    <div id="budget-content">
+      <!-- Budget UI is rendered by JavaScript using stored budget data -->
+    </div>
+    
+    <script>
+      (function() {
+        // Parse data from server
+        const budget = JSON.parse(document.getElementById('budget-json').textContent);
+        const analytics = JSON.parse(document.getElementById('analytics-data').textContent);
+        const categorySpending = analytics.category_breakdown || {};
+        
+        const container = document.getElementById('budget-content');
+        const totalBudget = budget.total || 0;
+        const categoryBudgets = budget.categories || {};
+        
+        // Calculate total spent from analytics
+        const totalSpent = Object.values(categorySpending).reduce((a, b) => a + b, 0);
+        
+        // Category display config with icons and colors
+        const categoryConfig = {
+          food: { icon: '🍕', color: '#4CAF50', name: 'Food' },
+          hotel: { icon: '🏨', color: '#9C27B0', name: 'Hotel' },
+          transport: { icon: '🚗', color: '#2196F3', name: 'Transport' },
+          fun: { icon: '🎉', color: '#FF9800', name: 'Fun' },
+          misc: { icon: '📦', color: '#9E9E9E', name: 'Misc' }
+        };
+        
+        // Check if any budget was set
+        const hasTotalBudget = totalBudget > 0;
+        const hasCategoryBudgets = Object.values(categoryBudgets).some(v => v > 0);
+        
+        if (!hasTotalBudget && !hasCategoryBudgets) {
+          container.innerHTML = `
+            <p class="no-budget-msg">
+              No budget was set for this trip. Create a new trip with budget values to enable tracking.
+            </p>
+            <p style="color:#666; font-size:0.9em;">
+              Total spent so far: <strong>₹${totalSpent.toFixed(2)}</strong>
+            </p>
+          `;
+          return;
+        }
+        
+        let html = '';
+        let warnings = [];
+        
+        // Overall budget section
+        if (hasTotalBudget) {
+          const remaining = totalBudget - totalSpent;
+          const percentage = Math.min((totalSpent / totalBudget) * 100, 100);
+          const progressClass = percentage >= 100 ? 'danger' : percentage >= 80 ? 'warning' : 'safe';
+          
+          if (remaining < 0) {
+            warnings.push(`⚠️ Total budget exceeded by ₹${Math.abs(remaining).toFixed(2)}!`);
+          }
+          
+          html += `
+            <div class="budget-overview">
+              <h3>📊 Overall Budget</h3>
+              <div class="budget-stats">
+                <div class="budget-stat">
+                  <div class="value">₹${totalBudget.toFixed(0)}</div>
+                  <div class="label">Budget</div>
+                </div>
+                <div class="budget-stat">
+                  <div class="value">₹${totalSpent.toFixed(0)}</div>
+                  <div class="label">Spent</div>
+                </div>
+                <div class="budget-stat">
+                  <div class="value" style="color: ${remaining >= 0 ? '#c8e6c9' : '#ffcdd2'}">
+                    ${remaining >= 0 ? '₹' + remaining.toFixed(0) : '-₹' + Math.abs(remaining).toFixed(0)}
+                  </div>
+                  <div class="label">${remaining >= 0 ? 'Remaining' : 'Over Budget'}</div>
+                </div>
+              </div>
+              <div class="progress-container">
+                <div class="progress-bar ${progressClass}" style="width: ${percentage}%"></div>
+              </div>
+            </div>
+          `;
+        }
+        
+        // Category budgets
+        if (hasCategoryBudgets) {
+          html += '<h3 style="margin-top:20px;">📂 Category Budgets</h3>';
+          html += '<div class="category-budgets">';
+          
+          for (const [cat, budgetAmt] of Object.entries(categoryBudgets)) {
+            if (budgetAmt <= 0) continue;
+            
+            const config = categoryConfig[cat] || { icon: '📦', color: '#9E9E9E', name: cat };
+            const spent = categorySpending[cat] || 0;
+            const catRemaining = budgetAmt - spent;
+            const catPercentage = Math.min((spent / budgetAmt) * 100, 100);
+            
+            if (catRemaining < 0) {
+              warnings.push(`${config.icon} ${config.name} budget exceeded by ₹${Math.abs(catRemaining).toFixed(2)}`);
+            }
+            
+            html += `
+              <div class="category-budget-card ${cat}">
+                <h4>${config.icon} ${config.name}</h4>
+                <div class="amounts">
+                  Spent ₹${spent.toFixed(0)} of ₹${budgetAmt.toFixed(0)}
+                  ${catRemaining >= 0 
+                    ? `<span style="color:#4CAF50;"> (₹${catRemaining.toFixed(0)} left)</span>`
+                    : `<span style="color:#f44336;"> (₹${Math.abs(catRemaining).toFixed(0)} over)</span>`
+                  }
+                </div>
+                <div class="category-progress">
+                  <div class="category-progress-bar ${cat}" style="width: ${catPercentage}%"></div>
+                </div>
+              </div>
+            `;
+          }
+          
+          html += '</div>';
+        }
+        
+        // Show warnings
+        if (warnings.length > 0) {
+          html += '<div style="margin-top:20px;">';
+          for (const warn of warnings) {
+            const isTotal = warn.includes('Total');
+            html += `
+              <div class="budget-warning ${isTotal ? '' : 'category-warning'}">
+                ${warn}
+              </div>
+            `;
+          }
+          html += '</div>';
+        }
+        
+        container.innerHTML = html;
+      })();
+    </script>
+  </section>
 
   <!-- ADD EXPENSE -->
   <section class="card">
@@ -116,6 +425,8 @@
           {% endif %}
         </span>
       </div>
+    {% else %}
+      <p>Add expenses to see settlement summary.</p>
     {% endfor %}
   </section>
 
@@ -131,82 +442,87 @@
     {% endfor %}
   </section>
 
-  <!-- BUDGET -->
-<section class="card">
-  <h2>💰 Trip Budget</h2>
-
-  <input
-    type="number"
-    id="budgetInput"
-    placeholder="Enter total trip budget"
-    style="width:100%; margin-bottom:10px;"
-  >
-
-  <p id="budgetStatus">Enter a budget to track your spending.</p>
-</section>
-
-
-  <!-- INSIGHTS -->
+  <!-- INSIGHTS with color-coded charts -->
   <section class="card">
     <h2>📊 Insights</h2>
 
-    <script id="analytics-json" type="application/json">
-      {{ analytics | tojson | safe }}
-    </script>
-
-    <canvas id="categoryChart" width="250" height="250"></canvas>
-    <canvas id="dailyChart" style="margin-top:30px;"></canvas>
+    <div class="chart-container">
+      <canvas id="categoryChart"></canvas>
+    </div>
+    <div class="chart-container" style="max-width:500px;">
+      <canvas id="dailyChart"></canvas>
+    </div>
 
     <script>
-      const analyticsData = JSON.parse(
-        document.getElementById("analytics-json").textContent
-      );
+      (function() {
+        // Reuse analytics data already embedded above
+        const analyticsData = JSON.parse(
+          document.getElementById("analytics-data").textContent
+        );
 
-      const categoryData = analyticsData.category_breakdown || {};
-      const dailyData = analyticsData.daily_spending || {};
+        const categoryData = analyticsData.category_breakdown || {};
+        const dailyData = analyticsData.daily_spending || {};
 
-      if (Object.keys(categoryData).length > 0) {
-        new Chart(categoryChart, {
-          type: "pie",
-          data: {
-            labels: Object.keys(categoryData),
-            datasets: [{ data: Object.values(categoryData) }]
-          }
-        });
-      }
+        // Consistent category colors
+        const categoryColors = {
+          food: '#4CAF50',
+          hotel: '#9C27B0',
+          transport: '#2196F3',
+          fun: '#FF9800',
+          misc: '#9E9E9E'
+        };
 
-      if (Object.keys(dailyData).length > 0) {
-        new Chart(dailyChart, {
-          type: "line",
-          data: {
-            labels: Object.keys(dailyData),
-            datasets: [{
-              label: "Daily Spend",
-              data: Object.values(dailyData),
-              fill: false
-            }]
-          }
-        });
-      }
+        // Build color array matching category order
+        const labels = Object.keys(categoryData);
+        const colors = labels.map(cat => categoryColors[cat] || '#9E9E9E');
 
-      // Budget logic
-      const totalSpent = Object.values(categoryData || {})
-  .reduce((a, b) => a + b, 0);
+        if (labels.length > 0) {
+          new Chart(document.getElementById('categoryChart'), {
+            type: "pie",
+            data: {
+              labels: labels,
+              datasets: [{
+                data: Object.values(categoryData),
+                backgroundColor: colors,
+                borderWidth: 2,
+                borderColor: '#fff'
+              }]
+            },
+            options: {
+              responsive: true,
+              plugins: {
+                legend: { position: 'bottom' }
+              }
+            }
+          });
+        }
 
-
-      const budgetInput = document.getElementById("budgetInput");
-      const budgetStatus = document.getElementById("budgetStatus");
-
-      budgetInput.addEventListener("input", () => {
-        const budget = parseFloat(budgetInput.value);
-        if (!budget) return budgetStatus.textContent = "";
-
-        const remaining = budget - totalSpent;
-        budgetStatus.textContent =
-          remaining >= 0
-          ? `✅ Spent ₹${totalSpent} / ₹${budget} — Remaining ₹${remaining}`
-          : `⚠️ Budget exceeded by ₹${Math.abs(remaining)}`;
-      });
+        if (Object.keys(dailyData).length > 0) {
+          new Chart(document.getElementById('dailyChart'), {
+            type: "line",
+            data: {
+              labels: Object.keys(dailyData),
+              datasets: [{
+                label: "Daily Spend (₹)",
+                data: Object.values(dailyData),
+                fill: true,
+                backgroundColor: 'rgba(102, 126, 234, 0.2)',
+                borderColor: '#667eea',
+                tension: 0.3
+              }]
+            },
+            options: {
+              responsive: true,
+              plugins: {
+                legend: { display: false }
+              },
+              scales: {
+                y: { beginAtZero: true }
+              }
+            }
+          });
+        }
+      })();
     </script>
   </section>
 
@@ -219,6 +535,8 @@
         <p>{{d.category}} ₹{{d.amount}} → share ₹{{d.share}}</p>
       {% endfor %}
       <p><strong>Net:</strong> ₹{{data.net}}</p>
+    {% else %}
+      <p>Add expenses to see detailed breakdown.</p>
     {% endfor %}
   </section>
 

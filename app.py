@@ -1,9 +1,7 @@
 from flask import Flask, render_template, request, redirect, url_for
 from datetime import date
 import re
-from collections import defaultdict
 
-# Backend imports (DO NOT MODIFY THESE FILES)
 from participants import add_participant, get_participants
 from expenses import add_expense, get_expenses, VALID_CATEGORIES
 from splitter import calculate_balances
@@ -13,10 +11,19 @@ from config.firebase_config import get_db
 
 app = Flask(__name__)
 
-ACTIVE_TRIP = {
-    "trip_id": None,
-    "trip_name": None
+ACTIVE_TRIP = {"trip_id": None, "trip_name": None}
+# In-memory budget storage (NO Firebase)
+ACTIVE_BUDGET = {
+    "total": 0,
+    "categories": {
+        "food": 0,
+        "hotel": 0,
+        "transport": 0,
+        "fun": 0,
+        "misc": 0
+    }
 }
+
 
 # ------------------ HELPERS ------------------
 
@@ -38,9 +45,7 @@ def explain_participant_expenses(participant_id, expenses, id_to_name):
         if participant_id in e.beneficiaries:
             share = e.amount / len(e.beneficiaries)
             total_share += share
-
             explanation.append({
-                "expense_id": e.expense_id,
                 "category": e.category,
                 "amount": e.amount,
                 "beneficiaries": len(e.beneficiaries),
@@ -70,13 +75,9 @@ def index():
     settlements_named = []
     warnings = []
 
-    analytics = {
-        "category_breakdown": {},
-        "daily_spending": {}
-    }
-
+    analytics = {"category_breakdown": {}, "daily_spending": {}}
     explanations = {}
-
+    payer_name_map = {}
 
     if trip_id:
         participants = get_participants(trip_id)
@@ -91,8 +92,15 @@ def index():
                 [vars(e) for e in expenses]
             )
 
-            settlements = optimize_settlements(balances)
+            for pid, data in balances.items():
+                summary.append({
+                    "name": id_to_name.get(pid),
+                    "paid": round(data["total_paid"], 2),
+                    "share": round(data["total_share"], 2),
+                    "net": round(data["net_balance"], 2)
+                })
 
+            settlements = optimize_settlements(balances)
             for s in settlements:
                 settlements_named.append({
                     "from": id_to_name.get(s["from_participant"]),
@@ -104,21 +112,8 @@ def index():
                 [vars(p) for p in participants],
                 [vars(e) for e in expenses]
             )
-
-            analytics = analytics_result.get("analytics", {
-    "category_breakdown": {},
-    "daily_spending": {}
-})
+            analytics = analytics_result.get("analytics", analytics)
             warnings = analytics_result.get("warnings", [])
-
-            for pid, data in balances.items():
-                net = data["net_balance"]
-                summary.append({
-                    "name": id_to_name.get(pid),
-                    "paid": round(data["total_paid"], 2),
-                    "share": round(data["total_share"], 2),
-                    "net": round(net, 2)
-                })
 
             for p in participants:
                 explanations[p.name] = explain_participant_expenses(
@@ -135,9 +130,9 @@ def index():
         analytics=analytics,
         warnings=warnings,
         explanations=explanations,
-        categories=VALID_CATEGORIES
-        payer_name_map=payer_name_map,
-
+        categories=VALID_CATEGORIES,
+        budget=ACTIVE_BUDGET,
+        payer_name_map=payer_name_map
     )
 
 # ------------------ CREATE TRIP ------------------
@@ -164,6 +159,16 @@ def create_trip():
 
     ACTIVE_TRIP["trip_id"] = trip_id
     ACTIVE_TRIP["trip_name"] = trip_name
+    # Read budget inputs (NO Firebase)
+    ACTIVE_BUDGET["total"] = float(request.form.get("total_budget") or 0)
+
+    ACTIVE_BUDGET["categories"] = {
+        "food": float(request.form.get("budget_food") or 0),
+        "hotel": float(request.form.get("budget_hotel") or 0),
+        "transport": float(request.form.get("budget_transport") or 0),
+        "fun": float(request.form.get("budget_fun") or 0),
+        "misc": 0
+    }
 
     return redirect(url_for("index"))
 
@@ -180,6 +185,8 @@ def add_exp():
     note = request.form.get("note")
 
     beneficiaries = request.form.getlist("beneficiaries")
+    if not beneficiaries:
+        beneficiaries = [payer_id]  # safety fallback
 
     add_expense(
         trip_id=trip_id,
