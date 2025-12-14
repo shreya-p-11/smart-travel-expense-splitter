@@ -1,6 +1,7 @@
 from flask import Flask, render_template, request, redirect, url_for
 from datetime import date
 import re
+from collections import defaultdict
 
 # Backend imports (DO NOT MODIFY THESE FILES)
 from participants import add_participant, get_participants
@@ -12,7 +13,6 @@ from config.firebase_config import get_db
 
 app = Flask(__name__)
 
-# In-memory active trip (simple, works for demo & Render)
 ACTIVE_TRIP = {
     "trip_id": None,
     "trip_name": None
@@ -29,6 +29,35 @@ def generate_trip_id(trip_name):
 def participant_map(participants):
     return {p.participant_id: p.name for p in participants}
 
+def explain_participant_expenses(participant_id, expenses, id_to_name):
+    explanation = []
+    total_paid = 0
+    total_share = 0
+
+    for e in expenses:
+        if participant_id in e.beneficiaries:
+            share = e.amount / len(e.beneficiaries)
+            total_share += share
+
+            explanation.append({
+                "expense_id": e.expense_id,
+                "category": e.category,
+                "amount": e.amount,
+                "beneficiaries": len(e.beneficiaries),
+                "share": round(share, 2),
+                "payer": id_to_name.get(e.payer_id, e.payer_id)
+            })
+
+        if e.payer_id == participant_id:
+            total_paid += e.amount
+
+    return {
+        "details": explanation,
+        "total_paid": round(total_paid, 2),
+        "total_share": round(total_share, 2),
+        "net": round(total_paid - total_share, 2)
+    }
+
 # ------------------ ROUTES ------------------
 
 @app.route("/")
@@ -38,48 +67,59 @@ def index():
     participants = []
     expenses = []
     summary = []
-    settlements = []
-    analytics = {}
+    settlements_named = []
+    analytics = {
+    "category_breakdown": {},
+    "daily_spending": {}
+}
     warnings = []
+    explanations = {}
 
     if trip_id:
         participants = get_participants(trip_id)
         expenses = get_expenses(trip_id)
+
+        id_to_name = participant_map(participants)
 
         if expenses:
             balances = calculate_balances(
                 [vars(p) for p in participants],
                 [vars(e) for e in expenses]
             )
+
             settlements = optimize_settlements(balances)
+
+            for s in settlements:
+                settlements_named.append({
+                    "from": id_to_name.get(s["from_participant"]),
+                    "to": id_to_name.get(s["to_participant"]),
+                    "amount": s["amount"]
+                })
+
             analytics_result = generate_analytics(
                 [vars(p) for p in participants],
                 [vars(e) for e in expenses]
             )
-            analytics = analytics_result.get("analytics", {})
-            warnings = analytics_result.get("warnings", [])
 
-            id_to_name = participant_map(participants)
+            analytics = analytics_result.get("analytics", {
+    "category_breakdown": {},
+    "daily_spending": {}
+})
+            warnings = analytics_result.get("warnings", [])
 
             for pid, data in balances.items():
                 net = data["net_balance"]
-                if net > 0:
-                    msg = f"Gets back ₹{net:.2f}"
-                    status = "positive"
-                elif net < 0:
-                    msg = f"Owes ₹{abs(net):.2f}"
-                    status = "negative"
-                else:
-                    msg = "Settled"
-                    status = "neutral"
-
                 summary.append({
-                    "name": id_to_name.get(pid, pid),
+                    "name": id_to_name.get(pid),
                     "paid": round(data["total_paid"], 2),
                     "share": round(data["total_share"], 2),
-                    "message": msg,
-                    "status": status
+                    "net": round(net, 2)
                 })
+
+            for p in participants:
+                explanations[p.name] = explain_participant_expenses(
+                    p.participant_id, expenses, id_to_name
+                )
 
     return render_template(
         "index.html",
@@ -87,9 +127,10 @@ def index():
         participants=participants,
         expenses=expenses,
         summary=summary,
-        settlements=settlements,
+        settlements=settlements_named,
         analytics=analytics,
         warnings=warnings,
+        explanations=explanations,
         categories=VALID_CATEGORIES
     )
 
@@ -101,9 +142,6 @@ def create_trip():
     names = [n.strip() for n in request.form["participants"].split(",") if n.strip()]
     start_date = request.form["start_date"]
     duration = request.form["duration"]
-
-    if len(names) < 2:
-        return "At least two participants required", 400
 
     trip_id = generate_trip_id(trip_name)
 
@@ -129,24 +167,20 @@ def create_trip():
 def add_exp():
     trip_id = ACTIVE_TRIP["trip_id"]
 
-    if not trip_id:
-        return redirect(url_for("index"))
-
     category = request.form["category"]
     payer_id = request.form["payer"]
     amount = float(request.form["amount"])
     expense_date = request.form.get("expense_date", str(date.today()))
     note = request.form.get("note")
 
-    participants = get_participants(trip_id)
-    beneficiary_ids = [p.participant_id for p in participants]
+    beneficiaries = request.form.getlist("beneficiaries")
 
     add_expense(
         trip_id=trip_id,
         payer_id=payer_id,
         amount=amount,
         category=category,
-        beneficiaries=beneficiary_ids,
+        beneficiaries=beneficiaries,
         date=expense_date,
         note=note
     )
@@ -158,12 +192,9 @@ def add_exp():
 @app.route("/export")
 def export():
     trip_id = ACTIVE_TRIP["trip_id"]
-    if not trip_id:
-        return redirect(url_for("index"))
-
     expenses = get_expenses(trip_id)
-    lines = ["Category,Amount,Payer,Date"]
 
+    lines = ["Category,Amount,Paid By,Date"]
     for e in expenses:
         lines.append(f"{e.category},{e.amount},{e.payer_id},{e.date}")
 
@@ -171,8 +202,6 @@ def export():
         "Content-Type": "text/csv",
         "Content-Disposition": "attachment; filename=trip_report.csv"
     }
-
-# ------------------ RUN ------------------
 
 if __name__ == "__main__":
     app.run(host="0.0.0.0", port=5000)
