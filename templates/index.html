@@ -6,6 +6,14 @@
   <link rel="stylesheet" href="/static/style.css">
   <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
   <style>
+    /* 
+     * STYLE UPDATES:
+     * - Added currency selector styles
+     * - Added beneficiary control button styles
+     * - Added PDF download button styles
+     * - Maintained all existing budget/category styles
+     */
+    
     /* Category color scheme - consistent across all UI elements */
     :root {
       --color-food: #4CAF50;
@@ -13,6 +21,86 @@
       --color-transport: #2196F3;
       --color-fun: #FF9800;
       --color-misc: #9E9E9E;
+    }
+    
+    /* Currency selector styles */
+    .currency-selector {
+      position: fixed;
+      top: 15px;
+      right: 15px;
+      background: white;
+      padding: 8px 12px;
+      border-radius: 8px;
+      box-shadow: 0 2px 10px rgba(0,0,0,0.15);
+      z-index: 1000;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+    
+    .currency-selector label {
+      font-size: 0.85em;
+      color: #666;
+    }
+    
+    .currency-selector select {
+      padding: 5px 10px;
+      border: 1px solid #ddd;
+      border-radius: 5px;
+      font-size: 0.9em;
+      cursor: pointer;
+    }
+    
+    /* Beneficiary controls */
+    .beneficiary-controls {
+      display: flex;
+      gap: 10px;
+      margin: 10px 0;
+      flex-wrap: wrap;
+      align-items: center;
+    }
+    
+    .beneficiary-controls button {
+      padding: 6px 12px;
+      font-size: 0.85em;
+      background: #f0f0f0;
+      border: 1px solid #ddd;
+      border-radius: 5px;
+      cursor: pointer;
+      transition: all 0.2s;
+    }
+    
+    .beneficiary-controls button:hover {
+      background: #e0e0e0;
+    }
+    
+    .split-info {
+      background: #e3f2fd;
+      padding: 8px 12px;
+      border-radius: 5px;
+      font-size: 0.9em;
+      color: #1565c0;
+      display: inline-block;
+    }
+    
+    /* PDF download button */
+    .pdf-btn {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+      color: white;
+      padding: 12px 20px;
+      border-radius: 8px;
+      text-decoration: none;
+      font-weight: 500;
+      transition: transform 0.2s, box-shadow 0.2s;
+      margin-top: 15px;
+    }
+    
+    .pdf-btn:hover {
+      transform: translateY(-2px);
+      box-shadow: 0 4px 15px rgba(102, 126, 234, 0.4);
     }
     
     /* Budget section styles */
@@ -154,9 +242,29 @@
       max-width: 350px;
       margin: 0 auto 30px auto;
     }
+    
+    /* Currency-aware amount display */
+    .currency-amount {
+      /* JavaScript will update these dynamically */
+    }
   </style>
 </head>
 <body>
+
+<!-- 
+  TASK 4: Currency Selector (UI-ONLY)
+  - Fixed position selector for instant currency switching
+  - Uses static conversion rates (no API calls)
+  - All amounts have class="currency-amount" for JS targeting
+-->
+<div class="currency-selector">
+  <label>💱 Currency:</label>
+  <select id="currencySelect">
+    <option value="INR" selected>₹ INR</option>
+    <option value="USD">$ USD</option>
+    <option value="EUR">€ EUR</option>
+  </select>
+</div>
 
 <div class="container">
 
@@ -206,163 +314,16 @@
   {% if trip_id %}
 
   <!-- 
-    FIX EXPLANATION:
-    Budget section is now OUTSIDE of any expense-dependent conditionals.
-    It renders immediately after trip creation, regardless of whether
-    expenses or analytics data exists. Budget uses in-memory data passed
-    from app.py via the 'budget' template variable.
+    TASK 3: Enhanced Add Expense Section
+    - Added Select All / Clear All buttons
+    - Added live split counter
+    - Payer auto-selection ensures payer is beneficiary
   -->
-
-  <!-- BUDGET TRACKING - Always visible after trip creation -->
-  <section class="card">
-    <h2>💰 Budget Tracking</h2>
-    
-    <!-- Embed budget and analytics data for JavaScript -->
-    <script id="budget-json" type="application/json">{{ budget | tojson | safe }}</script>
-    <script id="analytics-data" type="application/json">{{ analytics | tojson | safe }}</script>
-    
-    <div id="budget-content">
-      <!-- Budget UI is rendered by JavaScript using stored budget data -->
-    </div>
-    
-    <script>
-      (function() {
-        // Parse data from server
-        const budget = JSON.parse(document.getElementById('budget-json').textContent);
-        const analytics = JSON.parse(document.getElementById('analytics-data').textContent);
-        const categorySpending = analytics.category_breakdown || {};
-        
-        const container = document.getElementById('budget-content');
-        const totalBudget = budget.total || 0;
-        const categoryBudgets = budget.categories || {};
-        
-        // Calculate total spent from analytics
-        const totalSpent = Object.values(categorySpending).reduce((a, b) => a + b, 0);
-        
-        // Category display config with icons and colors
-        const categoryConfig = {
-          food: { icon: '🍕', color: '#4CAF50', name: 'Food' },
-          hotel: { icon: '🏨', color: '#9C27B0', name: 'Hotel' },
-          transport: { icon: '🚗', color: '#2196F3', name: 'Transport' },
-          fun: { icon: '🎉', color: '#FF9800', name: 'Fun' },
-          misc: { icon: '📦', color: '#9E9E9E', name: 'Misc' }
-        };
-        
-        // Check if any budget was set
-        const hasTotalBudget = totalBudget > 0;
-        const hasCategoryBudgets = Object.values(categoryBudgets).some(v => v > 0);
-        
-        if (!hasTotalBudget && !hasCategoryBudgets) {
-          container.innerHTML = `
-            <p class="no-budget-msg">
-              No budget was set for this trip. Create a new trip with budget values to enable tracking.
-            </p>
-            <p style="color:#666; font-size:0.9em;">
-              Total spent so far: <strong>₹${totalSpent.toFixed(2)}</strong>
-            </p>
-          `;
-          return;
-        }
-        
-        let html = '';
-        let warnings = [];
-        
-        // Overall budget section
-        if (hasTotalBudget) {
-          const remaining = totalBudget - totalSpent;
-          const percentage = Math.min((totalSpent / totalBudget) * 100, 100);
-          const progressClass = percentage >= 100 ? 'danger' : percentage >= 80 ? 'warning' : 'safe';
-          
-          if (remaining < 0) {
-            warnings.push(`⚠️ Total budget exceeded by ₹${Math.abs(remaining).toFixed(2)}!`);
-          }
-          
-          html += `
-            <div class="budget-overview">
-              <h3>📊 Overall Budget</h3>
-              <div class="budget-stats">
-                <div class="budget-stat">
-                  <div class="value">₹${totalBudget.toFixed(0)}</div>
-                  <div class="label">Budget</div>
-                </div>
-                <div class="budget-stat">
-                  <div class="value">₹${totalSpent.toFixed(0)}</div>
-                  <div class="label">Spent</div>
-                </div>
-                <div class="budget-stat">
-                  <div class="value" style="color: ${remaining >= 0 ? '#c8e6c9' : '#ffcdd2'}">
-                    ${remaining >= 0 ? '₹' + remaining.toFixed(0) : '-₹' + Math.abs(remaining).toFixed(0)}
-                  </div>
-                  <div class="label">${remaining >= 0 ? 'Remaining' : 'Over Budget'}</div>
-                </div>
-              </div>
-              <div class="progress-container">
-                <div class="progress-bar ${progressClass}" style="width: ${percentage}%"></div>
-              </div>
-            </div>
-          `;
-        }
-        
-        // Category budgets
-        if (hasCategoryBudgets) {
-          html += '<h3 style="margin-top:20px;">📂 Category Budgets</h3>';
-          html += '<div class="category-budgets">';
-          
-          for (const [cat, budgetAmt] of Object.entries(categoryBudgets)) {
-            if (budgetAmt <= 0) continue;
-            
-            const config = categoryConfig[cat] || { icon: '📦', color: '#9E9E9E', name: cat };
-            const spent = categorySpending[cat] || 0;
-            const catRemaining = budgetAmt - spent;
-            const catPercentage = Math.min((spent / budgetAmt) * 100, 100);
-            
-            if (catRemaining < 0) {
-              warnings.push(`${config.icon} ${config.name} budget exceeded by ₹${Math.abs(catRemaining).toFixed(2)}`);
-            }
-            
-            html += `
-              <div class="category-budget-card ${cat}">
-                <h4>${config.icon} ${config.name}</h4>
-                <div class="amounts">
-                  Spent ₹${spent.toFixed(0)} of ₹${budgetAmt.toFixed(0)}
-                  ${catRemaining >= 0 
-                    ? `<span style="color:#4CAF50;"> (₹${catRemaining.toFixed(0)} left)</span>`
-                    : `<span style="color:#f44336;"> (₹${Math.abs(catRemaining).toFixed(0)} over)</span>`
-                  }
-                </div>
-                <div class="category-progress">
-                  <div class="category-progress-bar ${cat}" style="width: ${catPercentage}%"></div>
-                </div>
-              </div>
-            `;
-          }
-          
-          html += '</div>';
-        }
-        
-        // Show warnings
-        if (warnings.length > 0) {
-          html += '<div style="margin-top:20px;">';
-          for (const warn of warnings) {
-            const isTotal = warn.includes('Total');
-            html += `
-              <div class="budget-warning ${isTotal ? '' : 'category-warning'}">
-                ${warn}
-              </div>
-            `;
-          }
-          html += '</div>';
-        }
-        
-        container.innerHTML = html;
-      })();
-    </script>
-  </section>
-
-  <!-- ADD EXPENSE -->
+  
+  <!-- ADD EXPENSE - Moved BEFORE Budget per TASK 2 requirement -->
   <section class="card">
     <h2>💳 Add Expense</h2>
-    <form method="POST" action="/add-expense">
+    <form method="POST" action="/add-expense" id="expenseForm">
 
       <select name="category" required>
         {% for c in categories %}
@@ -370,7 +331,7 @@
         {% endfor %}
       </select>
 
-      <select name="payer" required>
+      <select name="payer" id="payerSelect" required>
         {% for p in participants %}
           <option value="{{p.participant_id}}">{{p.name}}</option>
         {% endfor %}
@@ -378,12 +339,23 @@
 
       <div class="beneficiaries">
         <p><strong>Who benefited?</strong></p>
-        {% for p in participants %}
-          <label>
-            <input type="checkbox" name="beneficiaries" value="{{p.participant_id}}" checked>
-            {{p.name}}
-          </label>
-        {% endfor %}
+        
+        <!-- Beneficiary control buttons -->
+        <div class="beneficiary-controls">
+          <button type="button" id="selectAllBtn">✓ Select All</button>
+          <button type="button" id="clearAllBtn">✗ Clear All</button>
+          <span class="split-info" id="splitInfo">Split among {{ participants|length }} of {{ participants|length }} people</span>
+        </div>
+        
+        <div id="beneficiaryCheckboxes">
+          {% for p in participants %}
+            <label>
+              <input type="checkbox" name="beneficiaries" value="{{p.participant_id}}" 
+                     class="beneficiary-cb" data-participant-id="{{p.participant_id}}" checked>
+              {{p.name}}
+            </label>
+          {% endfor %}
+        </div>
       </div>
 
       <input type="number" name="amount" placeholder="Amount paid" required>
@@ -394,12 +366,31 @@
     </form>
   </section>
 
+  <!-- 
+    TASK 2: Budget Section Placement
+    Budget section is now AFTER "Add Expense" and BEFORE "Insights"
+    This matches the user flow: add expense → check budget → view insights
+  -->
+  
+  <!-- BUDGET TRACKING -->
+  <section class="card">
+    <h2>💰 Budget Tracking</h2>
+    
+    <!-- Embed budget and analytics data for JavaScript -->
+    <script id="budget-json" type="application/json">{{ budget | tojson | safe }}</script>
+    <script id="analytics-data" type="application/json">{{ analytics | tojson | safe }}</script>
+    
+    <div id="budget-content">
+      <!-- Budget UI is rendered by JavaScript using stored budget data -->
+    </div>
+  </section>
+
   <!-- EXPENSE HISTORY -->
   <section class="card">
     <h2>📜 Expense History</h2>
     {% for e in expenses %}
       <div class="list-item">
-        <strong>{{e.category}}</strong> — ₹{{e.amount}}
+        <strong>{{e.category}}</strong> — <span class="currency-amount" data-amount="{{e.amount}}">₹{{e.amount}}</span>
         <span>paid by {{ payer_name_map[e.payer_id] }}</span>
       </div>
     {% else %}
@@ -413,13 +404,13 @@
     {% for person in summary %}
       <div class="summary-row">
         <strong>{{person.name}}</strong>
-        <span>Paid: ₹{{person.paid}}</span>
-        <span>Share: ₹{{person.share}}</span>
+        <span>Paid: <span class="currency-amount" data-amount="{{person.paid}}">₹{{person.paid}}</span></span>
+        <span>Share: <span class="currency-amount" data-amount="{{person.share}}">₹{{person.share}}</span></span>
         <span>
           {% if person.net > 0 %}
-            Gets back ₹{{person.net}}
+            Gets back <span class="currency-amount" data-amount="{{person.net}}">₹{{person.net}}</span>
           {% elif person.net < 0 %}
-            Owes ₹{{-person.net}}
+            Owes <span class="currency-amount" data-amount="{{-person.net}}">₹{{-person.net}}</span>
           {% else %}
             Settled
           {% endif %}
@@ -435,7 +426,7 @@
     <h2>🔁 Who Pays Whom</h2>
     {% for s in settlements %}
       <div class="settlement">
-        👉 <strong>{{s.from}}</strong> pays <strong>{{s.to}}</strong> ₹{{s.amount}}
+        👉 <strong>{{s.from}}</strong> pays <strong>{{s.to}}</strong> <span class="currency-amount" data-amount="{{s.amount}}">₹{{s.amount}}</span>
       </div>
     {% else %}
       <p>No settlements needed 🎉</p>
@@ -452,78 +443,6 @@
     <div class="chart-container" style="max-width:500px;">
       <canvas id="dailyChart"></canvas>
     </div>
-
-    <script>
-      (function() {
-        // Reuse analytics data already embedded above
-        const analyticsData = JSON.parse(
-          document.getElementById("analytics-data").textContent
-        );
-
-        const categoryData = analyticsData.category_breakdown || {};
-        const dailyData = analyticsData.daily_spending || {};
-
-        // Consistent category colors
-        const categoryColors = {
-          food: '#4CAF50',
-          hotel: '#9C27B0',
-          transport: '#2196F3',
-          fun: '#FF9800',
-          misc: '#9E9E9E'
-        };
-
-        // Build color array matching category order
-        const labels = Object.keys(categoryData);
-        const colors = labels.map(cat => categoryColors[cat] || '#9E9E9E');
-
-        if (labels.length > 0) {
-          new Chart(document.getElementById('categoryChart'), {
-            type: "pie",
-            data: {
-              labels: labels,
-              datasets: [{
-                data: Object.values(categoryData),
-                backgroundColor: colors,
-                borderWidth: 2,
-                borderColor: '#fff'
-              }]
-            },
-            options: {
-              responsive: true,
-              plugins: {
-                legend: { position: 'bottom' }
-              }
-            }
-          });
-        }
-
-        if (Object.keys(dailyData).length > 0) {
-          new Chart(document.getElementById('dailyChart'), {
-            type: "line",
-            data: {
-              labels: Object.keys(dailyData),
-              datasets: [{
-                label: "Daily Spend (₹)",
-                data: Object.values(dailyData),
-                fill: true,
-                backgroundColor: 'rgba(102, 126, 234, 0.2)',
-                borderColor: '#667eea',
-                tension: 0.3
-              }]
-            },
-            options: {
-              responsive: true,
-              plugins: {
-                legend: { display: false }
-              },
-              scales: {
-                y: { beginAtZero: true }
-              }
-            }
-          });
-        }
-      })();
-    </script>
   </section>
 
   <!-- TRANSPARENCY -->
@@ -532,15 +451,351 @@
     {% for person, data in explanations.items() %}
       <h3>{{person}}</h3>
       {% for d in data.details %}
-        <p>{{d.category}} ₹{{d.amount}} → share ₹{{d.share}}</p>
+        <p>{{d.category}} <span class="currency-amount" data-amount="{{d.amount}}">₹{{d.amount}}</span> → share <span class="currency-amount" data-amount="{{d.share}}">₹{{d.share}}</span></p>
       {% endfor %}
-      <p><strong>Net:</strong> ₹{{data.net}}</p>
+      <p><strong>Net:</strong> <span class="currency-amount" data-amount="{{data.net}}">₹{{data.net}}</span></p>
     {% else %}
       <p>Add expenses to see detailed breakdown.</p>
     {% endfor %}
   </section>
 
+  <!-- 
+    TASK 1: PDF Export Button
+    Replaced CSV with PDF export
+    PDF generated on-demand, not stored in Firebase
+  -->
+  <section class="card">
+    <h2>📄 Export Report</h2>
+    <p>Download a professional PDF report with all trip details, expenses, and settlements.</p>
+    <a href="/export-pdf" class="pdf-btn">
+      📥 Download PDF Report
+    </a>
+  </section>
+
   {% endif %}
 </div>
+
+<!-- 
+  JAVASCRIPT SECTION
+  Contains all client-side logic for:
+  - Currency conversion (TASK 4)
+  - Beneficiary controls (TASK 3)
+  - Budget rendering
+  - Chart rendering
+-->
+<script>
+(function() {
+  // ===========================================
+  // TASK 4: Currency Conversion (UI-ONLY)
+  // Static rates - no API calls
+  // ===========================================
+  const currencyConfig = {
+    INR: { symbol: '₹', rate: 1 },
+    USD: { symbol: '$', rate: 0.012 },
+    EUR: { symbol: '€', rate: 0.011 }
+  };
+  
+  let currentCurrency = 'INR';
+  
+  function formatCurrency(amountINR, currency) {
+    const config = currencyConfig[currency];
+    const converted = amountINR * config.rate;
+    // Round to 2 decimal places
+    const formatted = currency === 'INR' 
+      ? converted.toFixed(0) 
+      : converted.toFixed(2);
+    return `${config.symbol}${formatted}`;
+  }
+  
+  function updateAllCurrencyDisplays() {
+    document.querySelectorAll('.currency-amount').forEach(el => {
+      const amountINR = parseFloat(el.dataset.amount);
+      if (!isNaN(amountINR)) {
+        el.textContent = formatCurrency(amountINR, currentCurrency);
+      }
+    });
+    
+    // Also update budget section if it exists
+    if (typeof renderBudget === 'function') {
+      renderBudget();
+    }
+  }
+  
+  // Currency selector event listener
+  const currencySelect = document.getElementById('currencySelect');
+  if (currencySelect) {
+    currencySelect.addEventListener('change', (e) => {
+      currentCurrency = e.target.value;
+      updateAllCurrencyDisplays();
+    });
+  }
+  
+  // ===========================================
+  // TASK 3: Beneficiary Controls
+  // ===========================================
+  const totalParticipants = document.querySelectorAll('.beneficiary-cb').length;
+  
+  function updateSplitInfo() {
+    const checked = document.querySelectorAll('.beneficiary-cb:checked').length;
+    const splitInfo = document.getElementById('splitInfo');
+    if (splitInfo) {
+      splitInfo.textContent = `Split among ${checked} of ${totalParticipants} people`;
+      // Visual feedback
+      if (checked === 0) {
+        splitInfo.style.background = '#ffebee';
+        splitInfo.style.color = '#c62828';
+      } else {
+        splitInfo.style.background = '#e3f2fd';
+        splitInfo.style.color = '#1565c0';
+      }
+    }
+  }
+  
+  // Select All button
+  const selectAllBtn = document.getElementById('selectAllBtn');
+  if (selectAllBtn) {
+    selectAllBtn.addEventListener('click', () => {
+      document.querySelectorAll('.beneficiary-cb').forEach(cb => cb.checked = true);
+      updateSplitInfo();
+    });
+  }
+  
+  // Clear All button
+  const clearAllBtn = document.getElementById('clearAllBtn');
+  if (clearAllBtn) {
+    clearAllBtn.addEventListener('click', () => {
+      document.querySelectorAll('.beneficiary-cb').forEach(cb => cb.checked = false);
+      updateSplitInfo();
+    });
+  }
+  
+  // Auto-select payer as beneficiary when payer changes
+  const payerSelect = document.getElementById('payerSelect');
+  if (payerSelect) {
+    payerSelect.addEventListener('change', () => {
+      const payerId = payerSelect.value;
+      const payerCheckbox = document.querySelector(`.beneficiary-cb[data-participant-id="${payerId}"]`);
+      if (payerCheckbox) {
+        payerCheckbox.checked = true;
+        updateSplitInfo();
+      }
+    });
+  }
+  
+  // Update split info when any checkbox changes
+  document.querySelectorAll('.beneficiary-cb').forEach(cb => {
+    cb.addEventListener('change', updateSplitInfo);
+  });
+  
+  // ===========================================
+  // Budget Rendering with Currency Support
+  // ===========================================
+  const budgetJsonEl = document.getElementById('budget-json');
+  const analyticsDataEl = document.getElementById('analytics-data');
+  
+  function renderBudget() {
+    if (!budgetJsonEl || !analyticsDataEl) return;
+    
+    const budget = JSON.parse(budgetJsonEl.textContent);
+    const analytics = JSON.parse(analyticsDataEl.textContent);
+    const categorySpending = analytics.category_breakdown || {};
+    
+    const container = document.getElementById('budget-content');
+    if (!container) return;
+    
+    const totalBudget = budget.total || 0;
+    const categoryBudgets = budget.categories || {};
+    const totalSpent = Object.values(categorySpending).reduce((a, b) => a + b, 0);
+    
+    const categoryConfig = {
+      food: { icon: '🍕', color: '#4CAF50', name: 'Food' },
+      hotel: { icon: '🏨', color: '#9C27B0', name: 'Hotel' },
+      transport: { icon: '🚗', color: '#2196F3', name: 'Transport' },
+      fun: { icon: '🎉', color: '#FF9800', name: 'Fun' },
+      misc: { icon: '📦', color: '#9E9E9E', name: 'Misc' }
+    };
+    
+    const hasTotalBudget = totalBudget > 0;
+    const hasCategoryBudgets = Object.values(categoryBudgets).some(v => v > 0);
+    
+    if (!hasTotalBudget && !hasCategoryBudgets) {
+      container.innerHTML = `
+        <p class="no-budget-msg">
+          No budget was set for this trip. Create a new trip with budget values to enable tracking.
+        </p>
+        <p style="color:#666; font-size:0.9em;">
+          Total spent so far: <strong>${formatCurrency(totalSpent, currentCurrency)}</strong>
+        </p>
+      `;
+      return;
+    }
+    
+    let html = '';
+    let warnings = [];
+    
+    if (hasTotalBudget) {
+      const remaining = totalBudget - totalSpent;
+      const percentage = Math.min((totalSpent / totalBudget) * 100, 100);
+      const progressClass = percentage >= 100 ? 'danger' : percentage >= 80 ? 'warning' : 'safe';
+      
+      if (remaining < 0) {
+        warnings.push(`⚠️ Total budget exceeded by ${formatCurrency(Math.abs(remaining), currentCurrency)}!`);
+      }
+      
+      html += `
+        <div class="budget-overview">
+          <h3>📊 Overall Budget</h3>
+          <div class="budget-stats">
+            <div class="budget-stat">
+              <div class="value">${formatCurrency(totalBudget, currentCurrency)}</div>
+              <div class="label">Budget</div>
+            </div>
+            <div class="budget-stat">
+              <div class="value">${formatCurrency(totalSpent, currentCurrency)}</div>
+              <div class="label">Spent</div>
+            </div>
+            <div class="budget-stat">
+              <div class="value" style="color: ${remaining >= 0 ? '#c8e6c9' : '#ffcdd2'}">
+                ${remaining >= 0 ? formatCurrency(remaining, currentCurrency) : '-' + formatCurrency(Math.abs(remaining), currentCurrency)}
+              </div>
+              <div class="label">${remaining >= 0 ? 'Remaining' : 'Over Budget'}</div>
+            </div>
+          </div>
+          <div class="progress-container">
+            <div class="progress-bar ${progressClass}" style="width: ${percentage}%"></div>
+          </div>
+        </div>
+      `;
+    }
+    
+    if (hasCategoryBudgets) {
+      html += '<h3 style="margin-top:20px;">📂 Category Budgets</h3>';
+      html += '<div class="category-budgets">';
+      
+      for (const [cat, budgetAmt] of Object.entries(categoryBudgets)) {
+        if (budgetAmt <= 0) continue;
+        
+        const config = categoryConfig[cat] || { icon: '📦', color: '#9E9E9E', name: cat };
+        const spent = categorySpending[cat] || 0;
+        const catRemaining = budgetAmt - spent;
+        const catPercentage = Math.min((spent / budgetAmt) * 100, 100);
+        
+        if (catRemaining < 0) {
+          warnings.push(`${config.icon} ${config.name} budget exceeded by ${formatCurrency(Math.abs(catRemaining), currentCurrency)}`);
+        }
+        
+        html += `
+          <div class="category-budget-card ${cat}">
+            <h4>${config.icon} ${config.name}</h4>
+            <div class="amounts">
+              Spent ${formatCurrency(spent, currentCurrency)} of ${formatCurrency(budgetAmt, currentCurrency)}
+              ${catRemaining >= 0 
+                ? `<span style="color:#4CAF50;"> (${formatCurrency(catRemaining, currentCurrency)} left)</span>`
+                : `<span style="color:#f44336;"> (${formatCurrency(Math.abs(catRemaining), currentCurrency)} over)</span>`
+              }
+            </div>
+            <div class="category-progress">
+              <div class="category-progress-bar ${cat}" style="width: ${catPercentage}%"></div>
+            </div>
+          </div>
+        `;
+      }
+      
+      html += '</div>';
+    }
+    
+    if (warnings.length > 0) {
+      html += '<div style="margin-top:20px;">';
+      for (const warn of warnings) {
+        const isTotal = warn.includes('Total');
+        html += `
+          <div class="budget-warning ${isTotal ? '' : 'category-warning'}">
+            ${warn}
+          </div>
+        `;
+      }
+      html += '</div>';
+    }
+    
+    container.innerHTML = html;
+  }
+  
+  // Make renderBudget globally accessible for currency updates
+  window.renderBudget = renderBudget;
+  
+  // Initial render
+  renderBudget();
+  
+  // ===========================================
+  // Chart Rendering with Category Colors
+  // ===========================================
+  if (analyticsDataEl) {
+    const analyticsData = JSON.parse(analyticsDataEl.textContent);
+    const categoryData = analyticsData.category_breakdown || {};
+    const dailyData = analyticsData.daily_spending || {};
+    
+    const categoryColors = {
+      food: '#4CAF50',
+      hotel: '#9C27B0',
+      transport: '#2196F3',
+      fun: '#FF9800',
+      misc: '#9E9E9E'
+    };
+    
+    const labels = Object.keys(categoryData);
+    const colors = labels.map(cat => categoryColors[cat] || '#9E9E9E');
+    
+    const categoryChartEl = document.getElementById('categoryChart');
+    if (categoryChartEl && labels.length > 0) {
+      new Chart(categoryChartEl, {
+        type: "pie",
+        data: {
+          labels: labels,
+          datasets: [{
+            data: Object.values(categoryData),
+            backgroundColor: colors,
+            borderWidth: 2,
+            borderColor: '#fff'
+          }]
+        },
+        options: {
+          responsive: true,
+          plugins: {
+            legend: { position: 'bottom' }
+          }
+        }
+      });
+    }
+    
+    const dailyChartEl = document.getElementById('dailyChart');
+    if (dailyChartEl && Object.keys(dailyData).length > 0) {
+      new Chart(dailyChartEl, {
+        type: "line",
+        data: {
+          labels: Object.keys(dailyData),
+          datasets: [{
+            label: "Daily Spend",
+            data: Object.values(dailyData),
+            fill: true,
+            backgroundColor: 'rgba(102, 126, 234, 0.2)',
+            borderColor: '#667eea',
+            tension: 0.3
+          }]
+        },
+        options: {
+          responsive: true,
+          plugins: {
+            legend: { display: false }
+          },
+          scales: {
+            y: { beginAtZero: true }
+          }
+        }
+      });
+    }
+  }
+})();
+</script>
+
 </body>
 </html>
