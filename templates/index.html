@@ -477,6 +477,18 @@
     {% endfor %}
   </section>
 
+  <!-- SMART WARNINGS -->
+  {% if warnings %}
+  <section class="card">
+    <h2>⚠️ Smart Warnings</h2>
+    {% for warning in warnings %}
+      <div class="budget-warning category-warning">
+        {{ warning }}
+      </div>
+    {% endfor %}
+  </section>
+  {% endif %}
+
   <!-- INSIGHTS with color-coded charts -->
   <section class="card">
     <h2>📊 Insights</h2>
